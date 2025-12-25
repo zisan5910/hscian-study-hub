@@ -1,9 +1,8 @@
-import { BookOpen, FileText, Link as LinkIcon, Facebook, Youtube, MessageCircle, Send, Moon, Sun, Share2, Download, Check } from 'lucide-react';
+import { BookOpen, FileText, Link as LinkIcon, Facebook, Youtube, MessageCircle, Send, Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
 import { useTheme } from '@/hooks/use-theme';
-import { usePwaInstall } from '@/hooks/use-pwa-install';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -12,28 +11,6 @@ interface MobileMenuProps {
 
 const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
   const { theme, toggleTheme } = useTheme();
-  const { isInstalled, installApp } = usePwaInstall();
-
-  const handleShare = async () => {
-    const url = window.location.origin;
-    const title = 'HSCianTV - শিক্ষামূলক ভিডিও প্ল্যাটফর্ম';
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, url });
-      } catch (err) {
-        // User cancelled
-      }
-    } else {
-      await navigator.clipboard.writeText(url);
-    }
-    onClose();
-  };
-
-  const handleInstall = () => {
-    installApp();
-    onClose();
-  };
 
   const socialLinks = [
     { href: 'https://facebook.com/hsciantv', icon: Facebook, label: 'Facebook Page', color: 'text-blue-600' },
@@ -64,28 +41,6 @@ const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
               onCheckedChange={toggleTheme}
             />
           </div>
-
-          {/* App Actions */}
-          <div className="space-y-1">
-            <button
-              onClick={handleShare}
-              className="sidebar-link w-full"
-            >
-              <Share2 size={20} />
-              <span>অ্যাপ শেয়ার করুন</span>
-            </button>
-
-            <button
-              onClick={handleInstall}
-              disabled={isInstalled}
-              className={`sidebar-link w-full ${isInstalled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isInstalled ? <Check size={20} /> : <Download size={20} />}
-              <span>{isInstalled ? 'ইনস্টল করা হয়েছে' : 'অ্যাপ ইনস্টল করুন'}</span>
-            </button>
-          </div>
-
-          <div className="border-t border-border" />
 
           {/* Navigation Links */}
           <div className="space-y-1">

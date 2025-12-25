@@ -6,8 +6,8 @@ import {
   VolumeX,
   Maximize,
   Minimize,
-  RotateCcw,
-  RotateCw
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -45,8 +45,8 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
   const hideControlsTimeout = useRef<NodeJS.Timeout>();
   const centerIconTimeout = useRef<NodeJS.Timeout>();
   const doubleTapTimeout = useRef<NodeJS.Timeout>();
-  const lastTap = useRef<{ time: number; side: 'left' | 'right' | 'center' }>({ time: 0, side: 'center' });
-  const tapCount = useRef<number>(0);
+  const lastTap = useRef<number>(0);
+  const tapSide = useRef<'left' | 'right' | null>(null);
 
   // Extract video ID from embed URL
   const getVideoId = (url: string) => {
@@ -106,6 +106,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
           playsinline: 1,
           origin: window.location.origin,
           enablejsapi: 1,
+          // Faster loading
           start: 0,
         },
         events: {
@@ -116,6 +117,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
       });
     };
 
+    // Instant initialization - no delay
     initPlayer();
 
     return () => {
@@ -176,7 +178,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
     setShowCenterIcon(icon);
     centerIconTimeout.current = setTimeout(() => {
       setShowCenterIcon(null);
-    }, 500);
+    }, 600);
   }, []);
 
   const togglePlay = useCallback(() => {
@@ -376,68 +378,43 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMobile, togglePlay, seekForward, seekBackward, handleVolumeChange, volume, toggleMute, toggleFullscreen, isFullscreen]);
 
-  // Mobile touch handling - Single tap = play/pause in fullscreen, Double tap = seek
+  // Mobile double tap to seek
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     
     const touch = e.touches[0];
     const x = touch.clientX - rect.left;
-    const width = rect.width;
-    
-    let side: 'left' | 'right' | 'center';
-    if (x < width * 0.3) {
-      side = 'left';
-    } else if (x > width * 0.7) {
-      side = 'right';
-    } else {
-      side = 'center';
-    }
+    const side = x < rect.width / 2 ? 'left' : 'right';
+    tapSide.current = side;
     
     const now = Date.now();
-    const timeDiff = now - lastTap.current.time;
+    const timeDiff = now - lastTap.current;
     
-    if (timeDiff < 300 && timeDiff > 0 && lastTap.current.side === side) {
-      // Double tap
-      tapCount.current = 0;
+    if (timeDiff < 300 && timeDiff > 0) {
       if (doubleTapTimeout.current) {
         clearTimeout(doubleTapTimeout.current);
       }
       
       if (side === 'left') {
         seekBackward(10);
-      } else if (side === 'right') {
-        seekForward(10);
       } else {
-        // Double tap center - toggle fullscreen in fullscreen mode
-        if (isFullscreen) {
-          toggleFullscreen();
-        }
+        seekForward(10);
       }
-      lastTap.current = { time: 0, side: 'center' };
+      lastTap.current = 0;
     } else {
-      // Single tap
-      lastTap.current = { time: now, side };
-      tapCount.current = 1;
+      lastTap.current = now;
       
       doubleTapTimeout.current = setTimeout(() => {
-        if (tapCount.current === 1) {
-          // Single tap action
-          if (isFullscreen) {
-            // In fullscreen: single tap = play/pause
-            togglePlay();
-          } else {
-            // Not in fullscreen: toggle controls
-            setShowControls(prev => !prev);
-            if (!showControls) {
-              resetHideTimeout();
-            }
+        if (lastTap.current !== 0) {
+          setShowControls(prev => !prev);
+          if (!showControls) {
+            resetHideTimeout();
           }
         }
-        tapCount.current = 0;
       }, 300);
     }
-  }, [seekBackward, seekForward, showControls, isFullscreen, togglePlay, toggleFullscreen]);
+  }, [seekBackward, seekForward, showControls]);
 
   // Auto-hide controls
   const resetHideTimeout = useCallback(() => {
@@ -480,20 +457,20 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
   const playbackRates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Mobile Controls
+  // Mobile Controls - Ultra Minimalist Single Line
   if (isMobile) {
     return (
       <div
         ref={containerRef}
         className={`relative w-full bg-black overflow-hidden select-none ${
-          isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video'
+          isFullscreen ? 'fixed inset-0 z-50' : 'aspect-[16/9] rounded-sm'
         }`}
         onTouchStart={handleTouchStart}
       >
         {/* YouTube Player */}
         <div id="youtube-player" className="absolute inset-0 w-full h-full pointer-events-none" />
 
-        {/* Overlay to block YouTube interactions */}
+        {/* Overlay */}
         <div
           className="absolute inset-0 z-10"
           onContextMenu={(e) => e.preventDefault()}
@@ -502,22 +479,22 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
         {/* Center animation icons */}
         {showCenterIcon && (
           <div className="absolute inset-0 flex items-center justify-center z-25 pointer-events-none">
-            <div className={`bg-black/60 backdrop-blur-sm rounded-full p-5 transition-all ${
-              showCenterIcon === 'forward' ? 'translate-x-16' : 
-              showCenterIcon === 'backward' ? '-translate-x-16' : ''
-            }`} style={{ animation: 'ping-once 0.5s ease-out' }}>
-              {showCenterIcon === 'play' && <Play className="w-12 h-12 text-white" fill="white" />}
-              {showCenterIcon === 'pause' && <Pause className="w-12 h-12 text-white" fill="white" />}
+            <div className={`bg-black/70 rounded-full p-4 ${
+              showCenterIcon === 'forward' ? 'ml-24' : 
+              showCenterIcon === 'backward' ? 'mr-24' : ''
+            }`} style={{ animation: 'pulse 0.5s ease-out' }}>
+              {showCenterIcon === 'play' && <Play className="w-10 h-10 text-white" fill="white" />}
+              {showCenterIcon === 'pause' && <Pause className="w-10 h-10 text-white" fill="white" />}
               {showCenterIcon === 'forward' && (
-                <div className="flex flex-col items-center gap-1">
-                  <RotateCw className="w-10 h-10 text-white" strokeWidth={2.5} />
-                  <span className="text-white text-sm font-bold">10s</span>
+                <div className="flex flex-col items-center">
+                  <Redo2 className="w-8 h-8 text-white" />
+                  <span className="text-white text-[10px] font-bold">10s</span>
                 </div>
               )}
               {showCenterIcon === 'backward' && (
-                <div className="flex flex-col items-center gap-1">
-                  <RotateCcw className="w-10 h-10 text-white" strokeWidth={2.5} />
-                  <span className="text-white text-sm font-bold">10s</span>
+                <div className="flex flex-col items-center">
+                  <Undo2 className="w-8 h-8 text-white" />
+                  <span className="text-white text-[10px] font-bold">10s</span>
                 </div>
               )}
             </div>
@@ -531,88 +508,80 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
           </div>
         )}
 
-        {/* Mobile Controls */}
+        {/* Mobile Controls - Minimalist Single Line */}
         <div
-          className={`absolute bottom-0 left-0 right-0 z-30 transition-all duration-300 ease-out ${
-            showControls || !isPlaying ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+          className={`absolute bottom-0 left-0 right-0 z-30 transition-opacity duration-200 ${
+            showControls || !isPlaying ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
           {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
           
           {/* Progress bar */}
-          <div className="relative px-3 pt-6 pb-1.5">
+          <div className="relative px-3 pt-4 pb-1">
             <div
               ref={progressRef}
-              className="relative w-full h-1 bg-white/30 rounded-full touch-none"
+              className="relative w-full h-[3px] bg-white/30 rounded-full"
               onClick={handleSeek}
               onTouchStart={handleSeekStart}
               onTouchMove={handleSeekMove}
               onTouchEnd={handleSeekEnd}
             >
               <div
-                className="absolute h-full bg-white/40 rounded-full transition-all"
+                className="absolute h-full bg-white/40 rounded-full"
                 style={{ width: `${buffered}%` }}
               />
               <div
-                className="absolute h-full bg-primary rounded-full transition-all"
+                className="absolute h-full bg-primary rounded-full"
                 style={{ width: `${progressPercent}%` }}
               >
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 -mr-2 bg-primary rounded-full shadow-lg" />
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 -mr-1.5 bg-primary rounded-full" />
               </div>
             </div>
           </div>
 
-          {/* Controls Row */}
-          <div className="relative flex items-center justify-between px-3 pb-2.5">
-            {/* Time */}
-            <span className="text-white text-xs font-medium tabular-nums min-w-[70px]">
-              {formatTime(currentTime)} / {formatTime(duration)}
+          {/* Single Line Controls */}
+          <div className="relative flex items-center justify-between px-2 pb-2">
+            {/* Left: Time */}
+            <span className="text-white/80 text-[10px] font-medium min-w-[60px]">
+              {formatTime(currentTime)}/{formatTime(duration)}
             </span>
 
-            {/* Center Controls */}
-            <div className="flex items-center gap-4">
-              {/* 10s Backward */}
+            {/* Center: Main controls - Compact */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => seekBackward(10)}
-                className="text-white active:scale-90 transition-transform p-1"
+                className="text-white active:scale-90 transition-transform"
               >
-                <div className="relative flex items-center justify-center">
-                  <RotateCcw className="w-6 h-6" strokeWidth={2} />
-                  <span className="absolute text-[8px] font-bold mt-0.5">10</span>
-                </div>
+                <Undo2 className="w-5 h-5" />
               </button>
 
-              {/* Play/Pause */}
               <button
                 onClick={togglePlay}
-                className="text-white active:scale-90 transition-transform p-1"
+                className="text-white active:scale-90 transition-transform"
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8" fill="white" />
+                  <Pause className="w-7 h-7" fill="white" />
                 ) : (
-                  <Play className="w-8 h-8 ml-0.5" fill="white" />
+                  <Play className="w-7 h-7" fill="white" />
                 )}
               </button>
 
-              {/* 10s Forward */}
               <button
                 onClick={() => seekForward(10)}
-                className="text-white active:scale-90 transition-transform p-1"
+                className="text-white active:scale-90 transition-transform"
               >
-                <div className="relative flex items-center justify-center">
-                  <RotateCw className="w-6 h-6" strokeWidth={2} />
-                  <span className="absolute text-[8px] font-bold mt-0.5">10</span>
-                </div>
+                <Redo2 className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Right Controls */}
-            <div className="flex items-center gap-1.5 min-w-[70px] justify-end">
-              {/* Playback Speed */}
+            {/* Right: Playback Speed & Fullscreen */}
+            <div className="flex items-center gap-1">
+              {/* Playback Speed Button */}
               <button
                 onClick={cyclePlaybackRate}
-                className="text-white text-xs font-medium px-2 py-1 bg-white/20 hover:bg-white/30 rounded active:scale-95 transition-all"
+                className="text-white text-[10px] font-medium px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded active:scale-95 transition-all"
+                aria-label="Playback Speed"
               >
                 {playbackRate}x
               </button>
@@ -623,9 +592,9 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
                 className="text-white active:scale-90 transition-transform p-1"
               >
                 {isFullscreen ? (
-                  <Minimize className="w-5 h-5" />
+                  <Minimize className="w-4 h-4" />
                 ) : (
-                  <Maximize className="w-5 h-5" />
+                  <Maximize className="w-4 h-4" />
                 )}
               </button>
             </div>
@@ -640,7 +609,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
     <div
       ref={containerRef}
       className={`relative w-full bg-black overflow-hidden select-none ${
-        isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video rounded-lg'
+        isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video rounded-md'
       }`}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -658,22 +627,22 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
       {/* Center animation icons */}
       {showCenterIcon && (
         <div className="absolute inset-0 flex items-center justify-center z-25 pointer-events-none">
-          <div className={`bg-black/50 backdrop-blur-sm rounded-full p-5 transition-all ${
-            showCenterIcon === 'forward' ? 'translate-x-24' : 
-            showCenterIcon === 'backward' ? '-translate-x-24' : ''
-          }`} style={{ animation: 'ping-once 0.5s ease-out' }}>
-            {showCenterIcon === 'play' && <Play className="w-12 h-12 text-white" fill="white" />}
-            {showCenterIcon === 'pause' && <Pause className="w-12 h-12 text-white" fill="white" />}
+          <div className={`bg-black/60 rounded-full p-4 ${
+            showCenterIcon === 'forward' ? 'ml-32' : 
+            showCenterIcon === 'backward' ? 'mr-32' : ''
+          }`} style={{ animation: 'pulse 0.5s ease-out' }}>
+            {showCenterIcon === 'play' && <Play className="w-10 h-10 text-white" fill="white" />}
+            {showCenterIcon === 'pause' && <Pause className="w-10 h-10 text-white" fill="white" />}
             {showCenterIcon === 'forward' && (
-              <div className="flex flex-col items-center gap-1">
-                <RotateCw className="w-10 h-10 text-white" strokeWidth={2.5} />
-                <span className="text-white text-sm font-bold">10s</span>
+              <div className="flex flex-col items-center">
+                <Redo2 className="w-8 h-8 text-white" />
+                <span className="text-white text-xs font-bold">10s</span>
               </div>
             )}
             {showCenterIcon === 'backward' && (
-              <div className="flex flex-col items-center gap-1">
-                <RotateCcw className="w-10 h-10 text-white" strokeWidth={2.5} />
-                <span className="text-white text-sm font-bold">10s</span>
+              <div className="flex flex-col items-center">
+                <Undo2 className="w-8 h-8 text-white" />
+                <span className="text-white text-xs font-bold">10s</span>
               </div>
             )}
           </div>
@@ -683,7 +652,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
       {/* Play overlay when paused */}
       {!isPlaying && isReady && !showControls && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="w-20 h-20 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center">
+          <div className="w-20 h-20 bg-black/60 rounded-full flex items-center justify-center backdrop-blur-sm">
             <Play className="w-10 h-10 text-white ml-1" fill="white" />
           </div>
         </div>
@@ -698,12 +667,12 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
 
       {/* Desktop Controls */}
       <div
-        className={`absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-all duration-300 ease-out ${
-          showControls || !isPlaying ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+        className={`absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/95 via-black/60 to-transparent transition-opacity duration-300 ${
+          showControls || !isPlaying ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         {/* Progress bar */}
-        <div className="px-4 pb-2 pt-14">
+        <div className="px-3 pb-2 pt-12">
           <div
             ref={progressRef}
             className="relative w-full h-1 bg-white/30 rounded-full cursor-pointer group/progress hover:h-1.5 transition-all"
@@ -714,61 +683,61 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
             onMouseLeave={handleSeekEnd}
           >
             <div
-              className="absolute h-full bg-white/40 rounded-full"
+              className="absolute h-full bg-white/50 rounded-full"
               style={{ width: `${buffered}%` }}
             />
             <div
               className="absolute h-full bg-primary rounded-full"
               style={{ width: `${progressPercent}%` }}
             >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 -mr-2 bg-primary rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity shadow-lg" />
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 -mr-1.5 bg-primary rounded-full opacity-0 group-hover/progress:opacity-100 transition-opacity" />
             </div>
           </div>
         </div>
 
         {/* Controls row */}
-        <div className="flex items-center justify-between gap-3 px-4 pb-4">
+        <div className="flex items-center justify-between gap-2 px-3 pb-3">
           {/* Left controls */}
           <div className="flex items-center gap-2">
             {/* 10s Backward */}
             <button
               onClick={() => seekBackward(10)}
-              className="text-white hover:text-primary transition-all hover:scale-110 p-1.5"
+              className="text-white hover:text-primary transition-colors p-1"
               title="10 সেকেন্ড পিছনে (J)"
             >
-              <div className="relative flex items-center justify-center">
-                <RotateCcw className="w-6 h-6" strokeWidth={2} />
-                <span className="absolute text-[9px] font-bold mt-0.5">10</span>
+              <div className="relative">
+                <Undo2 className="w-6 h-6" />
+                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-[9px] font-bold">10</span>
               </div>
             </button>
 
             {/* Play/Pause */}
             <button
               onClick={togglePlay}
-              className="text-white hover:text-primary transition-all hover:scale-110 p-1.5"
+              className="text-white hover:text-primary transition-colors p-1"
               title={isPlaying ? 'বিরতি (K)' : 'চালান (K)'}
             >
               {isPlaying ? (
                 <Pause className="w-7 h-7" fill="currentColor" />
               ) : (
-                <Play className="w-7 h-7 ml-0.5" fill="currentColor" />
+                <Play className="w-7 h-7" fill="currentColor" />
               )}
             </button>
 
             {/* 10s Forward */}
             <button
               onClick={() => seekForward(10)}
-              className="text-white hover:text-primary transition-all hover:scale-110 p-1.5"
+              className="text-white hover:text-primary transition-colors p-1"
               title="10 সেকেন্ড সামনে (L)"
             >
-              <div className="relative flex items-center justify-center">
-                <RotateCw className="w-6 h-6" strokeWidth={2} />
-                <span className="absolute text-[9px] font-bold mt-0.5">10</span>
+              <div className="relative">
+                <Redo2 className="w-6 h-6" />
+                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-[9px] font-bold">10</span>
               </div>
             </button>
 
             {/* Volume */}
-            <div className="flex items-center gap-1 group/volume ml-3">
+            <div className="flex items-center gap-1 group/volume ml-2">
               <button
                 onClick={toggleMute}
                 className="text-white hover:text-primary transition-colors p-1"
@@ -780,30 +749,30 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
                   <Volume2 className="w-5 h-5" />
                 )}
               </button>
-              <div className="w-0 group-hover/volume:w-20 overflow-hidden transition-all duration-300">
+              <div className="w-0 group-hover/volume:w-16 overflow-hidden transition-all duration-300">
                 <Slider
                   value={[isMuted ? 0 : volume]}
                   onValueChange={handleVolumeChange}
                   max={100}
                   step={1}
-                  className="w-20"
+                  className="w-16"
                 />
               </div>
             </div>
 
             {/* Time */}
-            <span className="text-white/90 text-sm font-medium ml-3 whitespace-nowrap tabular-nums">
+            <span className="text-white/90 text-sm font-medium ml-2 whitespace-nowrap">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 
           {/* Right controls */}
           <div className="flex items-center gap-2">
-            {/* Playback Speed */}
+            {/* Playback Speed Button */}
             <button
               onClick={cyclePlaybackRate}
-              className="text-white hover:text-primary transition-colors text-sm font-medium px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-md"
-              title="গতি পরিবর্তন"
+              className="text-white hover:text-primary transition-colors text-sm font-medium px-3 py-1 bg-white/10 hover:bg-white/20 rounded"
+              title="প্লেব্যাক স্পিড পরিবর্তন করুন"
             >
               {playbackRate === 1 ? 'Normal' : `${playbackRate}x`}
             </button>
@@ -811,7 +780,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
             {/* Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className="text-white hover:text-primary transition-all hover:scale-110 p-1.5"
+              className="text-white hover:text-primary transition-colors p-1"
               title={isFullscreen ? 'ফুলস্ক্রিন বন্ধ (F)' : 'ফুলস্ক্রিন (F)'}
             >
               {isFullscreen ? (
