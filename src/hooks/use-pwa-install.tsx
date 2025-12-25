@@ -40,12 +40,8 @@ export const usePwaInstall = () => {
 
   const installApp = async () => {
     if (!deferredPrompt) {
-      // Show manual install instructions for iOS
-      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-        alert('Safari এ Share বাটনে ক্লিক করে "Add to Home Screen" সিলেক্ট করুন।');
-      } else {
-        alert('ব্রাউজার মেনু থেকে "Install App" বা "Add to Home Screen" সিলেক্ট করুন।');
-      }
+      // For browsers that don't support beforeinstallprompt, silently return
+      // The browser will handle its own install UI
       return;
     }
 
