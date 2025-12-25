@@ -463,7 +463,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
       <div
         ref={containerRef}
         className={`relative w-full bg-black overflow-hidden select-none ${
-          isFullscreen ? 'fixed inset-0 z-50' : 'aspect-[16/9] rounded-sm'
+          isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video rounded-lg'
         }`}
         onTouchStart={handleTouchStart}
       >
@@ -609,7 +609,7 @@ const VideoPlayer = ({ embedUrl, title }: VideoPlayerProps) => {
     <div
       ref={containerRef}
       className={`relative w-full bg-black overflow-hidden select-none ${
-        isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video rounded-md'
+        isFullscreen ? 'fixed inset-0 z-50' : 'aspect-video rounded-lg'
       }`}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
