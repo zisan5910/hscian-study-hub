@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/hooks/use-theme";
+import ExternalBrowserRedirect from "@/components/ExternalBrowserRedirect";
 import Index from "./pages/Index";
 import Watch from "./pages/Watch";
 import NotFound from "./pages/NotFound";
@@ -14,6 +15,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <TooltipProvider>
+        <ExternalBrowserRedirect />
         <Toaster />
         <Sonner />
         <BrowserRouter>
