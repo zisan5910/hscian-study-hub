@@ -74,16 +74,9 @@ export const usePwaInstall = () => {
         console.error('Install error:', error);
       }
     } else {
-      // Fallback: Show manual install instructions for browsers that don't support beforeinstallprompt
-      const userAgent = navigator.userAgent.toLowerCase();
-      const isIOS = /iphone|ipad|ipod/.test(userAgent);
-      const isSafari = /safari/.test(userAgent) && !/chrome/.test(userAgent);
-      
-      if (isIOS || isSafari) {
-        alert('অ্যাপ ইন্সটল করতে:\n\n1. Share বাটনে ক্লিক করুন\n2. "Add to Home Screen" সিলেক্ট করুন');
-      } else {
-        alert('অ্যাপ ইন্সটল করতে:\n\nব্রাউজারের URL বারের ডান পাশে Install আইকনে ক্লিক করুন অথবা মেনু থেকে "Install App" সিলেক্ট করুন');
-      }
+      // Browsers only allow a real install prompt when `beforeinstallprompt` is available.
+      // We intentionally avoid showing alerts/toasts here to keep the flow clean.
+      return;
     }
   }, [isInstalled]);
 
