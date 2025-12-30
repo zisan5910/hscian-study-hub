@@ -113,14 +113,6 @@ const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
             {/* Share & Install App */}
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground px-4 mb-2 font-medium">App</p>
-              
-              <button
-                onClick={handleShare}
-                className="sidebar-link w-full text-left"
-              >
-                <Share2 size={20} className="text-primary" />
-                <span>Share App</span>
-              </button>
 
               {!isInstalled && (
                 <button
@@ -131,6 +123,14 @@ const MobileMenu = ({ isOpen, onClose }: MobileMenuProps) => {
                   <span>Install App</span>
                 </button>
               )}
+
+              <button
+                onClick={handleShare}
+                className="sidebar-link w-full text-left"
+              >
+                <Share2 size={20} className="text-primary" />
+                <span>Share App</span>
+              </button>
             </div>
           </div>
         </ScrollArea>
